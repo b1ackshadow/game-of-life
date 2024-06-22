@@ -9,10 +9,11 @@ const ACTIVE_CELL = "white";
 class Grid {
   private grid: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D | null;
-  private GRID_COLS: number = 20;
-  private GRID_ROWS: number = 20;
+  private GRID_COLS: number = 40;
+  private GRID_ROWS: number = 40;
   private scaleFactor: number;
-  private GRID_CELLS:Map<string, Boolean> = new Map();
+  //private GRID_CELLS:Map<string, Boolean> = new Map();
+  private GRID_CELLS:boolean[][] = Array(this.GRID_ROWS).fill(null).map(() => Array(this.GRID_COLS).fill(false));
 
   constructor() {
     this.grid = document.getElementById("grid") as HTMLCanvasElement;
@@ -28,6 +29,7 @@ class Grid {
 
     this.setupGrid();
     this.setupClickListener();
+    this.setupEvolveListener();
   }
 
   private setupGrid() {
@@ -60,7 +62,6 @@ class Grid {
       const rect = this.grid.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
-      console.log(`Clicked (${x},${y})`);
 
       const cellX = Math.floor(x / this.scaleFactor);
       const cellY = Math.floor(y / this.scaleFactor);
@@ -70,38 +71,75 @@ class Grid {
     
   }
 
-  private toggleCell(point: Point) {
-    let cellStatus: Boolean;
-    if (this.getCell(point)) {
-      this.deleteCell(point);
-      cellStatus = false;
-    } else {
-      // mark it
-      this.setCell(point);
-      cellStatus = true;
+  private setupEvolveListener() {
+    const evolve = document.getElementById('evolve') as HTMLElement | null;
+    evolve?.addEventListener('click', (event) => {
+      //event.preventDefault();
+      let interval = setInterval(() => {
+        this.evolve();
+        this.render();
+      }, 600)
+    })
+  }
+
+  private render() {
+    for(let x=0; x<this.GRID_COLS; ++x) {
+      for(let y=0; y<this.GRID_ROWS; ++y) {
+        //this.GRID_CELLS[x][y] = !this.GRID_CELLS[x][y];
+        const fillStyle = this.GRID_CELLS[x][y]? ACTIVE_CELL: INACTIVE_CELL;
+        this.ctx!.fillStyle = fillStyle;
+        this.ctx!.fillRect(x + 0.06, y + 0.06, 0.88, 0.88); // Drawing a 1x1 pixel in the scaled context
+      }
     }
-    const fillStyle = cellStatus? ACTIVE_CELL: INACTIVE_CELL;
+  }
+
+  private toggleCell(point: Point) {
+    const { x, y } = point;
+    this.GRID_CELLS[x][y] = !this.GRID_CELLS[x][y];
+    const fillStyle = this.GRID_CELLS[x][y]? ACTIVE_CELL: INACTIVE_CELL;
     this.ctx!.fillStyle = fillStyle;
     this.ctx!.fillRect(point.x + 0.06, point.y + 0.06, 0.88, 0.88); // Drawing a 1x1 pixel in the scaled context
   }
 
-  private getCell(point: Point): Boolean | undefined {
-    const key = this.pointToKey(point);
-    return this.GRID_CELLS.get(key);
-  }
+  private evolve() {
+    // for current state of the grid
+      // for each alive cell get the total neightbhors
+    const gridClone = this.GRID_CELLS.map(row => row.slice());
+    console.log(gridClone)
+    for(let x=0; x<this.GRID_ROWS; ++x) {
+      for(let y=0; y<this.GRID_COLS; ++y) {
+        const neighbors = [
+          [x - 1, y - 1], [x, y - 1], [x + 1, y - 1],
+          [x - 1, y],                 [x + 1, y],
+          [x - 1, y + 1], [x, y + 1], [x + 1, y + 1]
+        ];
 
-  private setCell(point: Point) {
-    const key = this.pointToKey(point);
-    this.GRID_CELLS.set(key, true);
-  }
+        let liveNeighbors = 0;
 
-  private deleteCell(point: Point) {
-    const key = this.pointToKey(point);
-    this.GRID_CELLS.delete(key);
-  }
+        neighbors.forEach(([nx, ny]) => {
+          if(nx >= 0 && nx < this.GRID_COLS) {
+            if(ny >= 0 && ny < this.GRID_ROWS) {
+              if(this.GRID_CELLS[nx][ny]) {
+                console.log(`${x}${y} Found at ${nx}${ny}`)
+                liveNeighbors++;
+              }
+            }
+          }
+        });
 
-  private pointToKey(point: Point): string {
-    return `${point.x},${point.y}`;
+        if(this.GRID_CELLS[x][y]) {
+          if(liveNeighbors < 2 || liveNeighbors > 3) {
+            gridClone[x][y] = false;
+          }
+        } else {
+          if(liveNeighbors === 3) {
+            gridClone[x][y] = true;
+          }
+        }
+      }
+    }
+    // once done update grid cells
+    this.GRID_CELLS = gridClone;
   }
 }
 
